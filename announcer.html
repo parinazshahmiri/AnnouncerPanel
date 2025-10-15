@@ -19,7 +19,7 @@
 <div id="announcement"></div>
 
 <script>
-const sheetUrl = "https://script.google.com/macros/s/AKfycbwVDb2D6XwSBQrHlp2EwBzYhHjUdrZqHWX7psH7vFZa3A_NdEnN5_FwkUMoxBlGLJAb/exec";
+const sheetUrl = "https://script.google.com/macros/s/AKfycbykgyDKFy9bvd3oRX9cZ0zNANohJecmbjvX_UghHH7NawegivTTqDxi3JDN8rpRGpUw/exec";
 const announcementDiv = document.getElementById("announcement");
 const statusDiv = document.getElementById("status");
 
@@ -28,15 +28,13 @@ let queue = [];
 let isPlaying = false;
 
 // فعال‌سازی صدا توسط کاربر
-document.getElementById("enableSound").addEventListener("click", ()=>{
+document.getElementById("enableSound").addEventListener("click", ()=> {
     soundEnabled = true;
-    // فعال‌سازی Web Audio API با یک فایل خالی
-    const audio = new Audio();
-    audio.play().catch(()=>{});
+    const audio = new Audio(); audio.play().catch(()=>{});
     alert("صدا فعال شد. پنل آماده اعلام نوبت است.");
 });
 
-// دریافت داده‌ها با JSONP
+// دریافت داده‌ها با JSONP و فقط نوبت‌های روز جاری
 function fetchDataJSONP() {
   const callbackName = "callback_" + Date.now();
   window[callbackName] = function(data){
@@ -51,12 +49,15 @@ function fetchDataJSONP() {
 // پردازش داده‌ها و اضافه کردن به صف
 function processData(data) {
   const today = new Date();
+  const todayStr = today.toDateString();
+
   const pending = data.filter(r => {
     if(!r.Status || r.Status === "Called") return false;
     const rowDate = new Date(r.Timestamp);
-    return rowDate.toDateString() === today.toDateString();
+    return rowDate.toDateString() === todayStr;
   });
 
+  // مرتب‌سازی به ترتیب Timestamp
   pending.sort((a,b) => new Date(a.Timestamp) - new Date(b.Timestamp));
 
   pending.forEach(t => {
@@ -72,7 +73,7 @@ function processData(data) {
   }
 }
 
-// پخش نوبت‌ها از صف پشت سر هم
+// پخش نوبت‌ها پشت سر هم و به ترتیب
 function playQueue(){
   if(queue.length === 0){
     isPlaying = false;
@@ -96,29 +97,26 @@ async function announce(ticket){
   if(boothNum) sounds.push("به باجه ی " + boothNum + ".mp3");
 
   if(soundEnabled){
-    playSequential(sounds);
+    await playSequential(sounds);
   }
 
-  // بروزرسانی Status به Called
+  // بروزرسانی Status به Called روی شیت
   fetch(sheetUrl + "?update=" + encodeURIComponent(ticketNum)).catch(()=>{});
 }
 
-// پخش صداها پشت سر هم با Promise
+// پخش صداها پشت سر هم
 function playSequential(files){
   return new Promise(resolve=>{
     if(files.length === 0 || !soundEnabled) return resolve();
     const audio = new Audio("voices/" + files[0]);
     audio.volume = 1.0;
-    audio.play().catch(e => {
-      console.log("خطا در پخش صدا:", e);
-      resolve();
-    });
+    audio.play().catch(e => { console.log("خطا در پخش صدا:", e); resolve(); });
     audio.onended = () => playSequential(files.slice(1)).then(resolve);
   });
 }
 
-// بررسی هر ۱ ثانیه
-setInterval(fetchDataJSONP,1000);
+// هر 0.5 ثانیه بررسی نوبت‌های جدید برای سرعت بالاتر
+setInterval(fetchDataJSONP,500);
 fetchDataJSONP();
 </script>
 
